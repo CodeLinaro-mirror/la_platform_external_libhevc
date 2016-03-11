@@ -354,6 +354,8 @@ WORD32 ihevcd_get_pic_mv_bank_size(WORD32 num_luma_samples)
     /* Size for storing pu_t for each PU */
     mv_bank_size += num_pu * sizeof(pu_t);
 
+    /* Size for storing slice_idx for each CTB */
+    mv_bank_size += ALIGN4(num_ctb * sizeof(UWORD16));
 
     size =  mv_bank_size;
     return size;
@@ -549,8 +551,8 @@ IHEVCD_ERROR_T ihevcd_pic_buf_mgr_add_bufs(codec_t *ps_codec)
     /* Initialize MV Bank buffer manager */
     ps_sps = ps_codec->s_parse.ps_sps;
 
-    pic_size = ps_sps->i2_pic_width_in_luma_samples *
-                    ps_sps->i2_pic_height_in_luma_samples;
+    pic_size = ALIGN64(ps_sps->i2_pic_width_in_luma_samples) *
+                    ALIGN64(ps_sps->i2_pic_height_in_luma_samples);
 
 
     /* Compute the number of MB Bank buffers needed */
@@ -671,8 +673,8 @@ IHEVCD_ERROR_T ihevcd_mv_buf_mgr_add_bufs(codec_t *ps_codec)
     /* Compute the number of MB Bank buffers needed */
     level = ps_codec->i4_init_level;
     max_dpb_size = ihevcd_get_dpb_size(level,
-                                       ps_sps->i2_pic_width_in_luma_samples *
-                                       ps_sps->i2_pic_height_in_luma_samples);
+                                       ALIGN64(ps_sps->i2_pic_width_in_luma_samples) *
+                                       ALIGN64(ps_sps->i2_pic_height_in_luma_samples));
 
     /* Allocate one extra MV Bank to handle current frame
      * In case of asynchronous parsing and processing, number of buffers should increase here
@@ -688,8 +690,8 @@ IHEVCD_ERROR_T ihevcd_mv_buf_mgr_add_bufs(codec_t *ps_codec)
     mv_bank_size_allocated = ps_codec->i4_total_mv_bank_size - BUF_MGR_MAX_CNT * sizeof(mv_buf_t);
 
     /* Compute MV bank size per picture */
-    pic_mv_bank_size = ihevcd_get_pic_mv_bank_size(ps_sps->i2_pic_width_in_luma_samples *
-                                                   ps_sps->i2_pic_height_in_luma_samples);
+    pic_mv_bank_size = ihevcd_get_pic_mv_bank_size(ALIGN64(ps_sps->i2_pic_width_in_luma_samples) *
+                                                   ALIGN64(ps_sps->i2_pic_height_in_luma_samples));
 
     for(i = 0; i < max_dpb_size; i++)
     {
@@ -720,9 +722,10 @@ IHEVCD_ERROR_T ihevcd_mv_buf_mgr_add_bufs(codec_t *ps_codec)
         pu1_buf += num_pu;
 
         ps_mv_buf->pu1_pic_slice_map = (UWORD16 *)pu1_buf;
-        pu1_buf += num_ctb * sizeof(UWORD16);
+        pu1_buf += ALIGN4(num_ctb * sizeof(UWORD16));
 
         ps_mv_buf->ps_pic_pu = (pu_t *)pu1_buf;
+        pu1_buf += num_pu * sizeof(pu_t);
 
         buf_ret = ihevc_buf_mgr_add((buf_mgr_t *)ps_codec->pv_mv_buf_mgr, ps_mv_buf, i);
 
@@ -731,7 +734,7 @@ IHEVCD_ERROR_T ihevcd_mv_buf_mgr_add_bufs(codec_t *ps_codec)
             ps_codec->s_parse.i4_error_code = IHEVCD_BUF_MGR_ERROR;
             return IHEVCD_BUF_MGR_ERROR;
         }
-        pu1_buf += pic_mv_bank_size;
+
         ps_mv_buf++;
 
     }
@@ -883,6 +886,35 @@ IHEVCD_ERROR_T ihevcd_parse_pic_init(codec_t *ps_codec)
         ps_pic_buf_ref = ihevc_dpb_mgr_get_ref_by_nearest_poc(ps_dpb_mgr, ps_slice_hdr->i4_abs_pic_order_cnt);
         if(NULL == ps_pic_buf_ref)
         {
+            WORD32 size;
+
+            WORD32 num_pu;
+            WORD32 num_ctb;
+            WORD32 pic_size;
+            /* In case current mv buffer itself is being used as reference mv buffer for colocated
+             * calculations, then memset all the buffers to zero.
+             */
+            pic_size = ALIGN64(ps_sps->i2_pic_width_in_luma_samples) *
+                            ALIGN64(ps_sps->i2_pic_height_in_luma_samples);
+
+            num_pu = pic_size / (MIN_PU_SIZE * MIN_PU_SIZE);
+            num_ctb = pic_size / (MIN_CTB_SIZE * MIN_CTB_SIZE);
+
+            memset(ps_mv_buf->l0_collocated_poc, 0, sizeof(ps_mv_buf->l0_collocated_poc));
+            memset(ps_mv_buf->u1_l0_collocated_poc_lt, 0, sizeof(ps_mv_buf->u1_l0_collocated_poc_lt));
+            memset(ps_mv_buf->l1_collocated_poc, 0, sizeof(ps_mv_buf->l1_collocated_poc));
+            memset(ps_mv_buf->u1_l1_collocated_poc_lt, 0, sizeof(ps_mv_buf->u1_l1_collocated_poc_lt));
+
+            size = (num_ctb + 1) * sizeof(WORD32);
+            memset(ps_mv_buf->pu4_pic_pu_idx, 0, size);
+
+            size = num_pu;
+            memset(ps_mv_buf->pu1_pic_pu_map, 0, size);
+            size = ALIGN4(num_ctb * sizeof(UWORD16));
+            memset(ps_mv_buf->pu1_pic_slice_map, 0, size);
+            size = num_pu * sizeof(pu_t);
+            memset(ps_mv_buf->ps_pic_pu, 0, size);
+
             ps_pic_buf_ref = ps_cur_pic;
             ps_mv_buf_ref = ps_mv_buf;
         }
@@ -946,8 +978,8 @@ IHEVCD_ERROR_T ihevcd_parse_pic_init(codec_t *ps_codec)
         WORD32 pic_size;
         WORD32 num_ctb;
 
-        pic_size = ps_sps->i2_pic_width_in_luma_samples *
-                        ps_sps->i2_pic_height_in_luma_samples;
+        pic_size = ALIGN64(ps_sps->i2_pic_width_in_luma_samples) *
+                        ALIGN64(ps_sps->i2_pic_height_in_luma_samples);
 
         ctb_luma_min_tu_cnt = pic_size / (MIN_TU_SIZE * MIN_TU_SIZE);
 
