@@ -691,13 +691,15 @@ static WORD32 ihevcd_parse_vui_parameters(bitstrm_t *ps_bitstrm,
     ps_vui->u1_video_format = VID_FMT_UNSPECIFIED;
     ps_vui->u1_video_full_range_flag = 0;
     ps_vui->u1_colour_description_present_flag = 0;
+    ps_vui->u1_colour_primaries = 2;
+    ps_vui->u1_transfer_characteristics = 2;
+    ps_vui->u1_matrix_coefficients = 2;
+
     if(ps_vui->u1_video_signal_type_present_flag)
     {
         BITS_PARSE("video_format", ps_vui->u1_video_format, ps_bitstrm, 3);
         BITS_PARSE("video_full_range_flag", ps_vui->u1_video_full_range_flag, ps_bitstrm, 1);
         BITS_PARSE("colour_description_present_flag", ps_vui->u1_colour_description_present_flag, ps_bitstrm, 1);
-        ps_vui->u1_colour_primaries = 2;
-        ps_vui->u1_transfer_characteristics = 2;
         if(ps_vui->u1_colour_description_present_flag)
         {
             BITS_PARSE("colour_primaries", ps_vui->u1_colour_primaries, ps_bitstrm, 8);
@@ -1191,6 +1193,7 @@ IHEVCD_ERROR_T ihevcd_parse_sps(codec_t *ps_codec)
     sps_t *ps_sps;
     profile_tier_lvl_info_t s_ptl;
     bitstrm_t *ps_bitstrm = &ps_codec->s_parse.s_bitstrm;
+    WORD32 ctb_log2_size_y = 0;
 
 
     BITS_PARSE("video_parameter_set_id", value, ps_bitstrm, 4);
@@ -1323,6 +1326,8 @@ IHEVCD_ERROR_T ihevcd_parse_sps(codec_t *ps_codec)
     UEV_PARSE("log2_diff_max_min_coding_block_size", value, ps_bitstrm);
     ps_sps->i1_log2_diff_max_min_coding_block_size = value;
 
+    ctb_log2_size_y = ps_sps->i1_log2_min_coding_block_size + ps_sps->i1_log2_diff_max_min_coding_block_size;
+
     UEV_PARSE("log2_min_transform_block_size_minus2", value, ps_bitstrm);
     ps_sps->i1_log2_min_transform_block_size = value + 2;
 
@@ -1331,6 +1336,12 @@ IHEVCD_ERROR_T ihevcd_parse_sps(codec_t *ps_codec)
 
     ps_sps->i1_log2_max_transform_block_size = ps_sps->i1_log2_min_transform_block_size +
                     ps_sps->i1_log2_diff_max_min_transform_block_size;
+
+    if ((ps_sps->i1_log2_max_transform_block_size < 0) ||
+                    (ps_sps->i1_log2_max_transform_block_size > MIN(ctb_log2_size_y, 5)))
+    {
+        return IHEVCD_INVALID_PARAMETER;
+    }
 
     ps_sps->i1_log2_ctb_size = ps_sps->i1_log2_min_coding_block_size +
                     ps_sps->i1_log2_diff_max_min_coding_block_size;
