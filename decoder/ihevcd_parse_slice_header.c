@@ -219,7 +219,7 @@ IHEVCD_ERROR_T ihevcd_parse_slice_header(codec_t *ps_codec,
 {
     IHEVCD_ERROR_T ret = (IHEVCD_ERROR_T)IHEVCD_SUCCESS;
     WORD32 value;
-    WORD32 i;
+    WORD32 i, j;
     WORD32 sps_id;
 
     pps_t *ps_pps;
@@ -257,10 +257,11 @@ IHEVCD_ERROR_T ihevcd_parse_slice_header(codec_t *ps_codec,
     {
         pps_t *ps_pps_ref = ps_codec->ps_pps_base;
         while(0 == ps_pps_ref->i1_pps_valid)
+        {
             ps_pps_ref++;
-
-        if((ps_pps_ref - ps_codec->ps_pps_base >= MAX_PPS_CNT - 1))
-            return IHEVCD_INVALID_HEADER;
+            if((ps_pps_ref - ps_codec->ps_pps_base >= MAX_PPS_CNT - 1))
+                return IHEVCD_INVALID_HEADER;
+        }
 
         ihevcd_copy_pps(ps_codec, pps_id, ps_pps_ref->i1_pps_id);
     }
@@ -869,6 +870,9 @@ IHEVCD_ERROR_T ihevcd_parse_slice_header(codec_t *ps_codec,
 
     ihevcd_bits_flush_to_byte_boundary(ps_bitstrm);
 
+    if((UWORD8 *)ps_bitstrm->pu4_buf > ps_bitstrm->pu1_buf_max)
+        return IHEVCD_INVALID_PARAMETER;
+
     {
         dpb_mgr_t *ps_dpb_mgr = (dpb_mgr_t *)ps_codec->pv_dpb_mgr;
         WORD32 r_idx;
@@ -891,11 +895,11 @@ IHEVCD_ERROR_T ihevcd_parse_slice_header(codec_t *ps_codec,
                     ihevc_dpb_mgr_del_ref((dpb_mgr_t *)ps_codec->pv_dpb_mgr, (buf_mgr_t *)ps_codec->pv_pic_buf_mgr, ps_pic_buf->i4_abs_poc);
                     /* Find buffer id of the MV bank corresponding to the buffer being freed (Buffer with POC of u4_abs_poc) */
                     ps_mv_buf = (mv_buf_t *)ps_codec->ps_mv_buf;
-                    for(i = 0; i < BUF_MGR_MAX_CNT; i++)
+                    for(j = 0; j < ps_codec->i4_max_dpb_size; j++)
                     {
                         if(ps_mv_buf && ps_mv_buf->i4_abs_poc == ps_pic_buf->i4_abs_poc)
                         {
-                            ihevc_buf_mgr_release((buf_mgr_t *)ps_codec->pv_mv_buf_mgr, i, BUF_MGR_REF);
+                            ihevc_buf_mgr_release((buf_mgr_t *)ps_codec->pv_mv_buf_mgr, j, BUF_MGR_REF);
                             break;
                         }
                         ps_mv_buf++;
