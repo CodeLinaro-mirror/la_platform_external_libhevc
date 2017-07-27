@@ -1363,15 +1363,31 @@ IHEVCD_ERROR_T ihevcd_parse_sps(codec_t *ps_codec)
     {
 
         UEV_PARSE("pic_crop_left_offset", value, ps_bitstrm);
+        if (value >= ps_sps->i2_pic_width_in_luma_samples)
+        {
+            return IHEVCD_INVALID_PARAMETER;
+        }
         ps_sps->i2_pic_crop_left_offset = value;
 
         UEV_PARSE("pic_crop_right_offset", value, ps_bitstrm);
+        if (value >= ps_sps->i2_pic_width_in_luma_samples)
+        {
+            return IHEVCD_INVALID_PARAMETER;
+        }
         ps_sps->i2_pic_crop_right_offset = value;
 
         UEV_PARSE("pic_crop_top_offset", value, ps_bitstrm);
+        if (value >= ps_sps->i2_pic_height_in_luma_samples)
+        {
+            return IHEVCD_INVALID_PARAMETER;
+        }
         ps_sps->i2_pic_crop_top_offset = value;
 
         UEV_PARSE("pic_crop_bottom_offset", value, ps_bitstrm);
+        if (value >= ps_sps->i2_pic_height_in_luma_samples)
+        {
+            return IHEVCD_INVALID_PARAMETER;
+        }
         ps_sps->i2_pic_crop_bottom_offset = value;
     }
     else
@@ -1869,6 +1885,19 @@ IHEVCD_ERROR_T ihevcd_parse_pps(codec_t *ps_codec)
 
     BITS_PARSE("tiles_enabled_flag", value, ps_bitstrm, 1);
     ps_pps->i1_tiles_enabled_flag = value;
+
+    /* When tiles are enabled and width or height is >= 4096,
+     * CTB Size should at least be 32. 16x16 CTBs can result
+     * in tile position greater than 255 for 4096,
+     * which decoder does not support.
+     */
+    if((ps_pps->i1_tiles_enabled_flag) &&
+                    (ps_sps->i1_log2_ctb_size == 4) &&
+                    ((ps_sps->i2_pic_width_in_luma_samples >= 4096) ||
+                    (ps_sps->i2_pic_height_in_luma_samples >= 4096)))
+    {
+        return IHEVCD_INVALID_HEADER;
+    }
 
     BITS_PARSE("entropy_coding_sync_enabled_flag", value, ps_bitstrm, 1);
     ps_pps->i1_entropy_coding_sync_enabled_flag = value;
