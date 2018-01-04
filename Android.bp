@@ -266,7 +266,8 @@ cc_library_static {
                 cflags: [
                     "-UDISABLE_NEON",
                     "-UDEFAULT_ARCH",
-                    "-DDEFAULT_ARCH=D_ARCH_ARM_A9Q",
+                    "-DDISABLE_NEON",
+                    "-DDEFAULT_ARCH=D_ARCH_ARM_NONEON",
                 ],
             },
         },
