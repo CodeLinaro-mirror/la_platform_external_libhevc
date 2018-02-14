@@ -6,7 +6,7 @@ cc_library_static {
         "-D_LIB",
         "-DMULTICORE",
         "-fPIC",
-
+        "-marm",
         "-O3",
         "-DANDROID",
     ],
