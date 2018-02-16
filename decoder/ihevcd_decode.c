@@ -81,6 +81,7 @@
 #define NUM_FRAMES_LIMIT 0x7FFFFFFF
 #endif
 
+IHEVCD_ERROR_T ihevcd_check_out_buf_size(codec_t *ps_codec);
 IHEVCD_ERROR_T ihevcd_fmt_conv(codec_t *ps_codec,
                                process_ctxt_t *ps_proc,
                                UWORD8 *pu1_y_dst,
@@ -420,7 +421,8 @@ WORD32 ihevcd_decode(iv_obj_t *ps_codec_obj, void *pv_api_ip, void *pv_api_op)
     if(0 == ps_codec->i4_share_disp_buf && ps_codec->i4_header_mode == 0)
     {
         UWORD32 i;
-        if(ps_dec_ip->s_out_buffer.u4_num_bufs == 0)
+        if((ps_dec_ip->s_out_buffer.u4_num_bufs <= 0) ||
+           (ps_dec_ip->s_out_buffer.u4_num_bufs > IVD_VIDDEC_MAX_IO_BUFFERS))
         {
             ps_dec_op->u4_error_code |= 1 << IVD_UNSUPPORTEDPARAM;
             ps_dec_op->u4_error_code |= IVD_DISP_FRM_ZERO_OP_BUFS;
@@ -470,6 +472,10 @@ WORD32 ihevcd_decode(iv_obj_t *ps_codec_obj, void *pv_api_ip, void *pv_api_op)
             {
                 ihevcd_init_proc_ctxt(ps_proc, 0);
             }
+
+            /* Output buffer check */
+            ret = ihevcd_check_out_buf_size(ps_codec);
+            RETURN_IF((ret != (IHEVCD_ERROR_T)IHEVCD_SUCCESS), ret);
 
             /* Set remaining number of rows to be processed */
             ret = ihevcd_fmt_conv(ps_codec, &ps_codec->as_process[prev_proc_idx],
@@ -628,7 +634,6 @@ WORD32 ihevcd_decode(iv_obj_t *ps_codec_obj, void *pv_api_ip, void *pv_api_op)
 
         if(IHEVCD_IGNORE_SLICE == ret)
         {
-            ps_codec->s_parse.i4_cur_slice_idx = MAX(0, (ps_codec->s_parse.i4_cur_slice_idx - 1));
             ps_codec->pu1_inp_bitsbuf += (nal_ofst + nal_len);
             ps_codec->i4_bytes_remaining -= (nal_ofst + nal_len);
 
