@@ -277,30 +277,6 @@ cc_library_static {
             },
         },
 
-        mips64: {
-            local_include_dirs: [
-                "decoder/mips",
-                "common/mips",
-            ],
-
-            srcs: [
-                "decoder/mips/ihevcd_function_selector.c",
-                "decoder/mips/ihevcd_function_selector_mips_generic.c",
-            ],
-        },
-
-        mips: {
-            local_include_dirs: [
-                "decoder/mips",
-                "common/mips",
-            ],
-
-            srcs: [
-                "decoder/mips/ihevcd_function_selector.c",
-                "decoder/mips/ihevcd_function_selector_mips_generic.c",
-            ],
-        },
-
         x86_64: {
             cflags: [
                 "-DX86",
@@ -416,6 +392,7 @@ cc_test {
         "-Wall",
         "-Werror",
     ],
+    gtest: false,
     srcs: ["test/decoder/main.c"],
     static_libs: ["libhevcdec"],
     target: {
@@ -794,6 +771,7 @@ cc_test {
         "-Wall",
         "-Werror",
     ],
+    gtest: false,
     srcs: ["test/encoder/main.c"],
     static_libs: ["libhevcenc"],
     sanitize: {
