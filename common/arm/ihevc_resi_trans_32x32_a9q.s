@@ -83,11 +83,8 @@ g_ai4_ihevc_trans_32_addr:
 @*/ @param[in] pred_strd
 @*/  Prediction Stride
 @*/
-@*/ @param[in] dst_strd
-@*/  Output Stride
-@*/
-@*/ @param[in] chroma plane (unused)
-@*/  Chroma plane
+@*/ @param[in] dst_strd_chr_flag
+@*/  Output Stride and Chroma Flag packed in the MS and LS 16-bit
 @*/
 @*/ @returns  Void
 @*/
@@ -112,7 +109,7 @@ ihevc_resi_trans_32x32_a9q:
 
     LDR         R4,[SP,#136]            @get src_strd
     LDR         R5,[SP,#140]            @get pred_strd
-    LDR         R6,[SP,#144]            @get dst_strd
+    LDR         R6,[SP,#144]            @get dst_strd_chr_flag
 
     MOV R8,#0                       @Set loop counter
     LDR R9,g_ai2_ihevc_trans_32_addr_1    @get 16 bit transform matrix
@@ -138,6 +135,7 @@ ulbl2:
     ADD R9, R9, PC
 
     MOV R7,#TMP_STRIDE_32
+@   AND R14,R6,#0x1
 
     VMOV.S32 Q14,#0
 
@@ -147,7 +145,7 @@ ulbl2:
 @R3     pi2_dst
 @R4     src_strd - 16
 @R5     pred_strd - 16
-@R6     dst_strd
+@R6     dst_strd_chr_flag
 @R7     tmp_dst Nx4 block stride
 @R8     loop cntr
 @R9     g_ai2_ihevc_trans_32
@@ -816,7 +814,7 @@ ulbl3:
     MOV R2,R3                       @set dst as tmp
     MOV R4,#TMP_STRIDE_32           @set tmp stride as src stride
     SUB R4,#112                     @Adjust stride for 7 previous loads
-    LSL R7,R6,#1                    @Set dst stride as tmp stride
+    LSR R7,R6,#15                   @Set dst stride as tmp stride
 
 
     @Block SAD
